@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/FlowBuilder fixed.iml" filepath="$PROJECT_DIR$/FlowBuilder fixed.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FlowBuilder.iml" filepath="$PROJECT_DIR$/FlowBuilder.iml" />
     </modules>
   </component>
 </project>
