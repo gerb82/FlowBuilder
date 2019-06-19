@@ -16,7 +16,7 @@ public abstract class Reader {
     // Category closer (for example, '}')
     private String closer;
     // List of possible categories inside of the file
-    private ArrayList<String> categories;
+    protected ArrayList<String> categories;
     // Are there in fact any categories, or is this file a raw main category?
     protected boolean raw = false;
 
