@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,9 +32,9 @@ public abstract class Reader {
     }
 
     // File reader, throws an IOException if the file could not be read
-    protected AbstractFormatDefinition readFile(File file) throws IOException {
+    public AbstractFormatDefinition readFile(File file) throws IOException {
         // File content
-        String fileText = new ObjectInputStream(new FileInputStream(file)).readUTF();
+        String fileText = new String(Files.readAllBytes(file.toPath()));
         // The format that will be used to decipher the contents of the file
         AbstractFormatDefinition format = formatSetup(file);
         // If it's a raw file, just set the main content on the format
