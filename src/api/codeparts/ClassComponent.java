@@ -18,6 +18,26 @@ public class ClassComponent extends HUDPane<ScrollPane> implements ContentCompon
     private Pane staticFunk;
     private Pane variables;
     private String extension;
+    private String tempContent;
+
+    public String getTempContent() {
+        return tempContent;
+    }
+
+    public void setTempContent(String tempContent) {
+        this.tempContent = tempContent;
+    }
+
+    private boolean abs;
+
+    public boolean isAbs() {
+        return abs;
+    }
+
+    public void setAbs(boolean abs) {
+        this.abs = abs;
+    }
+
     private ArrayList<String> implementation = new ArrayList<>();
     private SimpleStringProperty name = new SimpleStringProperty();
 
@@ -27,16 +47,16 @@ public class ClassComponent extends HUDPane<ScrollPane> implements ContentCompon
         staticFunk = new Pane();
         variables = new Pane();
         Pane inside = new Pane();
-        HUDPane<ScrollPane> funkHUD = new HUDPane<>(new ScrollPane(functions){{setBackground(new Background(new BackgroundFill(Color.CYAN, null, null)));}});
+        HUDPane<ScrollPane> funkHUD = new HUDPane<>(new ScrollPane(functions){{setBackground(new Background(new BackgroundFill(Color.YELLOWGREEN, null, null)));}});
         funkHUD.setName("functions");
-        HUDPane<ScrollPane> staticFunkHUD = new HUDPane<>(new ScrollPane(staticFunk){{setBackground(new Background(new BackgroundFill(Color.BROWN, null, null)));}});
+        HUDPane<ScrollPane> staticFunkHUD = new HUDPane<>(new ScrollPane(staticFunk){{setBackground(new Background(new BackgroundFill(Color.GREENYELLOW, null, null)));}});
         staticFunkHUD.setName("static functions");
-        HUDPane<ScrollPane> variablesHUD = new HUDPane<>(new ScrollPane(variables){{setBackground(new Background(new BackgroundFill(Color.OLIVE, null, null)));}});
+        HUDPane<ScrollPane> variablesHUD = new HUDPane<>(new ScrollPane(variables){{setBackground(new Background(new BackgroundFill(Color.ORANGE, null, null)));}});
         variablesHUD.setName("variables");
         inside.getChildren().addAll(funkHUD, staticFunkHUD, variablesHUD);
         staticFunkHUD.setLayoutX(100);
         variablesHUD.setLayoutY(100);
-        self.setBackground(new Background(new BackgroundFill(Color.GREEN, null, null)));
+        self.setBackground(new Background(new BackgroundFill(Color.OLIVE, null, null)));
         self.setContent(inside);
         nameProperty().bind(name);
     }
@@ -58,7 +78,7 @@ public class ClassComponent extends HUDPane<ScrollPane> implements ContentCompon
         return extension;
     }
 
-    public ArrayList<String> getImplementation() {
+    public ArrayList<String> getImplementations() {
         return implementation;
     }
 

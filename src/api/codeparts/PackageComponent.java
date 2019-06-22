@@ -6,23 +6,25 @@ import javafx.collections.ObservableList;
 import javafx.scene.Node;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Pane;
+import javafx.scene.paint.Color;
 
-public class PackageComponent extends HUDPane<ScrollPane>{
+public class PackageComponent extends HUDPane<SplitPane>{
 
     private Pane files;
     private Pane packages;
     private SimpleStringProperty name = new SimpleStringProperty();
 
     public PackageComponent() {
-        super(new ScrollPane());
-        SplitPane inside = new SplitPane();
-        inside.setPrefHeight(1000);
-        inside.setPrefWidth(1000);
-        self.setContent(inside);
+        super(new SplitPane());
+        self.setPrefHeight(1000);
+        self.setPrefWidth(1000);
         packages = new Pane();
         files = new Pane();
-        inside.getItems().addAll(packages, files);
+        self.setBackground(new Background(new BackgroundFill(Color.AQUAMARINE, null, null)));
+        self.getItems().addAll(packages, files);
         nameProperty().bind(name);
     }
 

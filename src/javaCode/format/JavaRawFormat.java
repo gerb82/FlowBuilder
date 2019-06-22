@@ -1,12 +1,16 @@
 package javaCode.format;
 
-import api.codeparts.*;
+import api.codeparts.ClassComponent;
+import api.codeparts.FileComponent;
+import api.codeparts.ImportComponent;
+import api.codeparts.PackageComponent;
 import api.format.AbstractCategoryDefinition;
 import api.format.AbstractFormatDefinition;
-import com.florianingerl.util.regex.Matcher;
-import com.florianingerl.util.regex.Pattern;
 
-import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Stack;
+
+import static javaCode.format.JavaRawFormat.Type.*;
 
 public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
 
@@ -17,277 +21,330 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
             @Override
             public void setContent(String content) throws IllegalArgumentException {
 
-                String p_name;
+                String pName = "src";
                 FileComponent file = new FileComponent();
-                StringBuilder postMappingContent = new StringBuilder();
-                ArrayList<ArrayList<String>> commentStrings = new ArrayList<ArrayList<String>>(){{this.add(new ArrayList<>()); this.add(new ArrayList<>()); this.add(new ArrayList<>());}};
-                ArrayList<ArrayList<String>> quotedStrings = new ArrayList<ArrayList<String>>(){{this.add(new ArrayList<>()); this.add(new ArrayList<>());}};
+                char[] text = content.toCharArray();
+                LinkedList<CodeComponent> components = new LinkedList<>();
+                CodeComponent current = new CodeComponent(0, 0, CODE);
 
-
-                // comments formatting (regex - " \/\/(.*)|\/\*\*(?s)(.*?)\*\/|\/\*(.*?)\*\/|(\/\*) ")
-                String[] commentlessContent = content.split("\\/\\/(.*)|\\/\\*\\*(?s)(.*?)\\*\\/|\\/\\*(.*?)\\*\\/|(\\/\\*)");
-                Matcher comments = Pattern.compile("\\/\\/(.*)|\\/\\*\\*(?s)(.*?)\\*\\/|\\/\\*(.*?)\\*\\/|(\\/\\*)").matcher(content);
-                postMappingContent.append(commentlessContent[0]);
-                for (int i = 1; comments.find(); i++) {
-                    String replacement = null;
-                    for (int j = 1; j < 4; j++) {
-                        if (comments.group(j) != null) {
-                            int numberRef;
-                            if (commentStrings.get(j - 1).contains(comments.group(j))) {
-                                numberRef = commentStrings.get(j - 1).indexOf(comments.group(j));
-                            } else {
-                                numberRef = commentStrings.get(j - 1).size();
-                                commentStrings.get(j - 1).add(comments.group(j));
+                for (int i = 0; i < text.length; i++) {
+                    switch (current.type) {
+                        case CODE:
+                            switch (text[i]) {
+                                case '/':
+                                    if (lastChar(text, i) == '/') {
+                                        current.length--;
+                                        components.add(current);
+                                        current = new CodeComponent(i - 1, 2, COMMENT_LINE);
+                                    } else {
+                                        current.length++;
+                                    }
+                                    break;
+                                case '*':
+                                    if (lastChar(text, i) == '/') {
+                                        current.length--;
+                                        components.add(current);
+                                        current = new CodeComponent(i - 1, 2, COMMENT_CLOSED);
+                                    } else {
+                                        current.length++;
+                                    }
+                                    break;
+                                case '"':
+                                    components.add(current);
+                                    current = new CodeComponent(i, 1, STRING);
+                                    break;
+                                case '\'':
+                                    components.add(current);
+                                    current = new CodeComponent(i, 1, CHAR);
+                                    break;
+                                default:
+                                    current.length++;
                             }
-                            replacement = comments.group(0).replace(comments.group(j), "@" + numberRef);
                             break;
-                        }
-                    }
-                    if (replacement == null)
-                        throw new IllegalArgumentException("There was an unclosed comment in the file");
-                    else
-                        postMappingContent.append(replacement + (commentlessContent.length < i ? "" : commentlessContent[i]));
-                }
-                System.out.println(postMappingContent.toString());
-
-
-                // strings formatting (regex - " \"(.*?(?<!\\))\"|'(\\[btnfr"'\\]|[^'\\\n])'|(\"|') ")
-                String[] stringlessContent = postMappingContent.toString().split("\\\"(.*?(?<!\\\\))\\\"|'(\\\\[btnfr\"'\\\\]|[^'\\\\\\n])'|(\\\"|')");
-                Matcher strings = Pattern.compile("\\\"(.*?(?<!\\\\))\\\"|'(\\\\[btnfr\"'\\\\]|[^'\\\\\\n])'|(\\\"|')").matcher(postMappingContent.toString());
-                postMappingContent = new StringBuilder();
-                postMappingContent.append(stringlessContent[0]);
-                for (int i = 1; strings.find(); i++) {
-                    String replacement = null;
-                    for (int j = 1; j < 3; j++) {
-                        if (strings.group(j) != null) {
-                            int numberRef;
-                            if (quotedStrings.get(j - 1).contains(strings.group(j))) {
-                                numberRef = quotedStrings.get(j - 1).indexOf(strings.group(j));
-                            } else {
-                                numberRef = quotedStrings.get(j - 1).size();
-                                quotedStrings.get(j - 1).add(strings.group(j));
-                            }
-                            replacement = strings.group(0).replace(strings.group(j), "@" + numberRef);
-                            break;
-                        }
-                    }
-                    if (replacement == null)
-                        throw new IllegalArgumentException("There was an unclosed quote in the file");
-                    else
-                        postMappingContent.append(replacement + (stringlessContent.length < i ? "" : stringlessContent[i]));
-                }
-                System.out.println(postMappingContent.toString());
-
-
-                /*
-                file scanning (regex - "
-
-                (?x)
-                (?(DEFINE)(?'word'[A-Za-z_$][A-Za-z0-9_$]*)
-                (?'class'(?:(?P>word)\.)*(?P>word))
-                (?'arr'(?:(?P>spacers)* \[\])*)
-                (?'extension'(?P>class)(?:<(?P>extension) (?P>arr) (?:(?P>spacers)* , (?P>spacers)* (?P>extension) (?P>arr))*>)?)
-                (?'bounds'\{(?:[^{}]|(?P>bounds)?)*\})
-                (?'noise'\S+)
-                (?'spacers'\/\/@\d+\s*|\/\*@\d+\s*\*\/|\/\*\*@\d+\s*\*\/|\s*))
-                \G (?P>spacers)* (?: (?<PreNoise>(?P>noise))? (?P>spacers))*? (?P>spacers)*
-                (?: package (?P>spacers)+ (?<package>(?P>class));)?
-                (?<imports>(?: (?P>spacers)* import (?P>spacers)+ (?:(?P>class)(?:\.\*)?);)+)? (?P>spacers)*
-                (?<classes>(?:(?:public)? (?P>spacers)+ class (?P>spacers)+ (?P>word) (?: (?P>spacers)+ extends (?P>spacers)+ (?P>extension))? (?: (?P>spacers)+ implements (?P>spacers)+ (?P>extension) (?: (?P>spacers)* , (?P>spacers)* (?P>extension))*)? (?P>spacers)* (?P>bounds) (?P>spacers)*)+) (?P>spacers)*
-                (?: (?<PostNoise>(?P>noise))? (?P>spacers))*
-
-                ")
-                 */
-                String mainClass = null;
-                ArrayList<String> classes = new ArrayList<>();
-                Matcher matcher = Pattern.compile(
-                        "(?x)\n" +
-                                "(?(DEFINE)(?<word>[A-Za-z_$][A-Za-z0-9_$]*)\n" +
-                                "(?<class>(?:(?'word')\\.)*(?'word'))\n" +
-                                "(?<arr>(?:(?'spacers')* \\[\\])*)\n" +
-                                "(?<extension>(?'class')(?:<(?'extension') (?'arr') (?:(?'spacers')* , (?'spacers')* (?'extension') (?'arr'))*>)?)\n" +
-                                "(?<bounds>\\{(?:[^{}]|(?'bounds')?)*\\})\n" +
-                                "(?<noise>\\S+)\n" +
-                                "(?<spacers>\\/\\/@\\d+\\s*|\\/\\*@\\d+\\s*\\*\\/|\\/\\*\\*@\\d+\\s*\\*\\/|\\s+))\n" +
-                                "\\G (?'spacers')* (?: (?<PreNoise>(?'noise'))? (?'spacers'))*? (?'spacers')*\n" +
-                                "(?: package (?'spacers')+ (?<package>(?'class'));)?\n" +
-                                "(?<imports>(?: (?'spacers')* import (?'spacers')+ (?:(?'class')(?:\\.\\*)?);)+)? (?'spacers')*\n" +
-                                "(?<classes>(?:(?:public)? (?'spacers')+ class (?'spacers')+ (?'word') (?: (?'spacers')+ extends (?'spacers')+ (?'extension'))? (?: (?'spacers')+ implements (?'spacers')+ (?'extension') (?: (?'spacers')* , (?'spacers')* (?'extension'))*)? (?'spacers')* (?'bounds') (?'spacers')*)+) (?'spacers')*\n" +
-                                "(?: (?<PostNoise>(?'noise'))? (?'spacers'))*").matcher(postMappingContent.toString());
-                if (matcher.find()) {
-                    if (matcher.group("PreNoise") != null) {
-                        throw new IllegalArgumentException("There was noise before the file content");
-                    }
-                    if (matcher.group("PostNoise") != null) {
-                        throw new IllegalArgumentException("There was noise after the file content");
-                    }
-                    p_name = matcher.group("package") == null ? "src" : matcher.group("package");
-                    if (matcher.group("imports") != null) {
-
-                            /* imports separator (regex - "
-
-                            (?x)
-                            (?(DEFINE)(?'word'[A-Za-z_$][A-Za-z0-9_$]*)
-                            (?'class'(?:(?P>word)\.)*(?P>word))
-                            (?'spacers'\/\/@\d+\s*|\/\*@\d+\s*\*\/|\/\*\*@\d+\s*\*\/|\s*))
-                            (?P>spacers)* import (?P>spacers)+ (?<import>(?P>class)(?:\.\*)?);
-
-                            ")
-                             */
-
-                        Matcher ports = Pattern.compile("(?x)\n" +
-                                "(?(DEFINE)(?<word>[A-Za-z_$][A-Za-z0-9_$]*)\n" +
-                                "(?<class>(?:(?'word')\\.)*(?'word'))\n" +
-                                "(?<spacers>\\/\\/@\\d+\\s*|\\/\\*@\\d+\\s*\\*\\/|\\/\\*\\*@\\d+\\s*\\*\\/|\\s+))\n" +
-                                "(?'spacers')* import (?'spacers')+ (?<import>(?'class')(?:\\.\\*)?);").matcher(matcher.group("imports"));
-                        while (ports.find()) {
-                            // TODO fix import validation
-                            String port = ports.group("import");
-                            if (port.contains("*")) {
-                                file.getImports().add(new ImportComponent(port.replace(".*", ""), false, false));
-                            } else {
-                                try {
-                                    Class.forName(port);
-                                    file.getImports().add(new ImportComponent(port, true, true));
-                                } catch (ClassNotFoundException e) {
-                                    file.getImports().add(new ImportComponent(port, false, true));
-                                }
-                            }
-                        }
-                    }
-                    if (matcher.group("classes") != null) {
-                        /* classes separator (regex - "
-
-                        (?x)
-                        (?(DEFINE)(?'word'[A-Za-z_$][A-Za-z0-9_$]*)
-                        (?'class'(?:(?P>word)\.)*(?P>word))
-                        (?'arr'(?:(?P>spacers)* \\[\\])*)
-                        (?'extension'(?P>class)(?:<(?P>extension) (?P>arr) (?:(?P>spacers)* , (?P>spacers)* (?P>extension) (?P>arr))*>)?)
-                        (?'bounds'\{(?:[^{}]|(?P>bounds)?)*\})
-                        (?'spacers'\/\/@\d+\s*|\/\*@\d+\s*\*\/|\/\*\*@\d+\s*\*\/|\s*))
-                        (?<public>public)? (?P>spacers)+ class (?P>spacers)+ (?<name>(?P>word)) (?: (?P>spacers)+ extends (?P>spacers)+ (?<extends>(?P>extension)))? (?: (?P>spacers)+ implements (?<implements> (?P>spacers)+ (?P>extension) (?: (?P>spacers)* , (?P>spacers)* (?P>extension))*))? (?P>spacers)* (?<content>(?P>bounds))
-
-                        ")
-                         */
-
-                        Matcher school = Pattern.compile("(?x)\n" +
-                                "(?(DEFINE)(?<word>[A-Za-z_$][A-Za-z0-9_$]*)\n" +
-                                "(?<class>(?:(?'word')\\.)*(?'word'))\n" +
-                                "(?<arr>(?:(?'spacers')* \\[\\])*)\n" +
-                                "(?<extension>(?'class')(?:<(?'extension') (?'arr') (?:(?'spacers')* , (?'spacers')* (?'extension') (?'arr'))*>)?)\n" +
-                                "(?<bounds>\\{(?:[^{}]|(?'bounds')?)*\\})\n" +
-                                "(?<spacers>\\/\\/@\\d+\\s*|\\/\\*@\\d+\\s*\\*\\/|\\/\\*\\*@\\d+\\s*\\*\\/|\\s+))\n" +
-                                "(?<public>public)? (?'spacers')+ class (?'spacers')+ (?<name>(?'word')) (?: (?'spacers')+ extends (?'spacers')+ (?<extends>(?'extension')))? (?: (?'spacers')+ implements (?<implements> (?'spacers')+ (?'extension') (?: (?'spacers')* , (?'spacers')* (?'extension'))*))? (?'spacers')* (?<content>(?'bounds'))").matcher(matcher.group("classes"));
-
-                        while(school.find()){
-                            ClassComponent current = new ClassComponent();
-                            if(school.group("public") != null){
-                                if(file.getMainClass() == null){
-                                    file.setMainClass(current);
-                                } else {
-                                    throw new IllegalArgumentException("The file contains two public classes");
-                                }
-                            } else {
-                                file.getClasses().add(current);
-                            }
-                            current.setExtension(school.group("extends"));
-                            if(school.group("implements") != null){
-                                for(String string : school.group("implements").replaceAll("\\/\\/@\\d+\\s*|\\/\\*@\\d+\\s*\\*\\/|\\/\\*\\*@\\d+\\s*\\*\\/|\\s+", "").split(",")){
-                                    current.getImplementation().add(string);
-                                }
-                            }
-                            current.setName(school.group("name"));
-
-                            /* functions seperator (regex - "
-
-                            (?x)
-                            (?(DEFINE)(?'word'[A-Za-z_$][A-Za-z0-9_$]*)
-                            (?'class'(?:(?P>word)\.)*(?P>word))
-                            (?'arr'(?:(?P>spacers)* \[\])*)
-                            (?'extension'(?P>class)(?:<(?P>extension) (?P>arr) (?:(?P>spacers)* , (?P>spacers)* (?P>extension) (?P>arr))*>)?)
-                            (?'bounds'\{(?:[^{}]|(?P>bounds)?)*\})
-                            (?'parameter'(?P>extension) (?P>arr) (?P>spacers)+ (?P>word))
-                            (?'spacers'\/\/@\d+\s*|\/\*@\d+\s*\*\/|\/\*\*@\d+\s*\*\/|\s*))
-                            (?P>spacers)* (?<public>public|private|protected)? (?P>spacers)+ (?<static>static (?P>spacers)+)? (?<return>(?P>extension)|void) (?P>spacers)+ (?<name>(?P>word)) (?P>spacers)* \((?<parameters> (?P>parameter) (?:(?P>spacers)* , (?P>spacers)* (?P>parameter))*)?\) (?P>spacers)* (?<throws>throws (?P>spacers)* (?P>extension) (?: (?P>spacers)* , (?P>spacers)* (?P>extension))*)? (?P>spacers)* (?<content>(?P>bounds))
-
-                            ")
-                             */
-
-                            Matcher funk = Pattern.compile("(?x)\n" +
-                                    "(?(DEFINE)(?<word>[A-Za-z_$][A-Za-z0-9_$]*)\n" +
-                                    "(?<class>(?:(?'word')\\.)*(?'word'))\n" +
-                                    "(?<arr>(?:(?'spacers')* \\[\\])*)\n" +
-                                    "(?<extension>(?'class')(?:<(?'extension') (?'arr') (?:(?'spacers')* , (?'spacers')* (?'extension') (?'arr'))*>)?)\n" +
-                                    "(?<bounds>\\{(?:[^{}]|(?'bounds')?)*\\})\n" +
-                                    "(?<parameter>(?'extension') (?'arr') (?'spacers')+ (?'word'))\n" +
-                                    "(?<spacers>\\/\\/@\\d+\\s*|\\/\\*@\\d+\\s*\\*\\/|\\/\\*\\*@\\d+\\s*\\*\\/|\\s+))\n" +
-                                    "(?'spacers')* (?<public>public|private|protected)? (?'spacers')+ (?<static>static (?'spacers')+)? (?<return>(?'extension')|void) (?'spacers')+ (?<name>(?'word')) (?'spacers')* \\((?<parameters> (?'parameter') (?:(?'spacers')* , (?'spacers')* (?'parameter'))*)?\\) (?'spacers')* (?<throws>throws (?'spacers')* (?'extension') (?: (?'spacers')* , (?'spacers')* (?'extension'))*)? (?'spacers')* (?<content>(?'bounds'))").matcher(school.group("content"));
-
-                            while(funk.find()){
-                                FunctionComponent curFunk = new FunctionComponent();
-                                if(funk.group("public") != null){
-                                    switch(funk.group("public")){
-                                        case "public":
-                                            curFunk.setAccessLevel(FunctionComponent.Protection.PUBLIC);
-                                            break;
-                                        case "private":
-                                            curFunk.setAccessLevel(FunctionComponent.Protection.PRIVATE);
-                                            break;
-                                        case "protected":
-                                            curFunk.setAccessLevel(FunctionComponent.Protection.PROTECTED);
-                                            break;
+                        case CHAR:
+                            if (current.length == 1) {
+                                current.length++;
+                            } else if (current.length == 2) {
+                                if (lastChar(text, i) == '\\') {
+                                    if ("tbnrf'\"\\".contains(new Character(text[i]).toString())) {
+                                        current.length++;
+                                    } else {
+                                        throw new IllegalArgumentException("Illegal char at: " + i);
                                     }
                                 } else {
-                                    curFunk.setAccessLevel(FunctionComponent.Protection.PACKAGE_PROTECTED);
-                                }
-                                curFunk.setStatic(funk.group("static") != null);
-                                curFunk.setName(funk.group("name"));
-                                curFunk.setReturnType(funk.group("return"));
-                                if(funk.group("parameters") != null){
-
-                                    /* parameter seperator (regex - "
-
-                                    (?x)
-                                    (?(DEFINE)(?'word'[A-Za-z_$][A-Za-z0-9_$]*)
-                                    (?'class'(?:(?P>word)\.)*(?P>word))
-                                    (?'arr'(?:(?P>spacers)* \[\])*)
-                                    (?'extension'(?P>class)(?:<(?P>extension) (?P>arr) (?:(?P>spacers)* , (?P>spacers)* (?P>extension) (?P>arr))*>)?)
-                                    (?'spacers'\/\/@\d+\s*|\/\*@\d+\s*\*\/|\/\*\*@\d+\s*\*\/|\s*))
-                                    (?<type>(?P>extension) (?P>arr)) (?P>spacers)+ (?<name>(?P>word))
-
-                                    ")
-                                     */
-
-                                    for(Matcher paramater = Pattern.compile("(?x)\n" +
-                                            "(?(DEFINE)(?<word>[A-Za-z_$][A-Za-z0-9_$]*)\n" +
-                                            "(?<class>(?:(?'word')\\.)*(?'word'))\n" +
-                                            "(?<arr>(?:(?'spacers')* \\[\\])*)\n" +
-                                            "(?<extension>(?'class')(?:<(?'extension') (?'arr') (?:(?'spacers')* , (?'spacers')* (?'extension') (?'arr'))*>)?)\n" +
-                                            "(?<spacers>\\/\\/@\\d+\\s*|\\/\\*@\\d+\\s*\\*\\/|\\/\\*\\*@\\d+\\s*\\*\\/|\\s+))\n" +
-                                            "(?<type>(?'extension') (?'arr')) (?'spacers')+ (?<name>(?'word'))").matcher(funk.group("parameters")); paramater.find();){
-                                        VariableComponent var = new VariableComponent();
-                                        var.setName(paramater.group("name"));
-                                        var.setType(paramater.group("type"));
-                                        curFunk.getParameters().add(var);
+                                    if (text[i] == '\'') {
+                                        current.length++;
+                                        components.add(current);
+                                        current = new CodeComponent(i + 1, 0, CODE);
+                                    } else {
+                                        throw new IllegalArgumentException("Illegal char at: " + i);
                                     }
                                 }
-
-                                //TODO decipher function content
-                                curFunk.setTempContent(funk.group("content"));
-                                (curFunk.getStatic() ? current.getStaticFunctions() : current.getFunctions()).add(curFunk);
+                            } else if (current.length == 3) {
+                                if (text[i] == '\'') {
+                                    current.length++;
+                                    components.add(current);
+                                    current = new CodeComponent(i + 1, 0, CODE);
+                                } else {
+                                    throw new IllegalArgumentException("Illegal char at: " + i);
+                                }
                             }
-                        }
-
+                            break;
+                        case STRING:
+                            current.length++;
+                            if (text[i] == '"') {
+                                if (lastChar(text, i) != '\\') {
+                                    components.add(current);
+                                    current = new CodeComponent(i + 1, 0, CODE);
+                                }
+                            }
+                            break;
+                        case COMMENT_LINE:
+                            if (text[i] == '\n') {
+                                current.length++;
+                                components.add(current);
+                                current = new CodeComponent(i + 1, 0, CODE);
+                            } else {
+                                current.length++;
+                            }
+                            break;
+                        case COMMENT_CLOSED:
+                            current.length++;
+                            if (text[i] == '/') {
+                                if (lastChar(text, i) == '*') {
+                                    components.add(current);
+                                    current = new CodeComponent(i + 1, 0, CODE);
+                                }
+                            }
+                            break;
                     }
-                } else {
-                    throw new IllegalArgumentException("The file could not be parsed");
                 }
-                if (matcher.find()) {
-                    throw new IllegalArgumentException("The file contained two successive valid files");
-                }
+                components.add(current);
 
-                src.setName(p_name);
+                StringBuilder rawCode = new StringBuilder();
+                for (CodeComponent component : components) {
+                    if (component.type == CODE) {
+                        rawCode.append(String.copyValueOf(text, component.start, component.length));
+                    } else if (component.type == COMMENT_CLOSED || component.type == COMMENT_LINE) {
+                        rawCode.append(" ");
+                    }
+                }
+                String finalCode = rawCode.toString().replaceAll(" ?\\. ?", ".").replaceAll("\\{", " { ").replaceAll("\\}", " } ").replaceAll("\\(", " ( ").replaceAll("\\)", " ) ").replaceAll("\\[", " [ ").replaceAll("\\]", " ] ").replaceAll("<", " < ").replaceAll(">", " > ").replaceAll(";", " ; ").replaceAll("[\\s\\n]+", " ");
+                String[] codeParts = finalCode.split(" ");
+
+                Stack<Character> parents = new Stack<>();
+                boolean pack = false;
+                try {
+                    for (int i = 0; i < codeParts.length; i++) {
+                        switch (codeParts[i]) {
+                            case "package":
+                                if (pack) {
+                                    throw new IllegalArgumentException("Two package elements found");
+                                } else {
+                                    pack = true;
+                                    i++;
+                                    for (String part : codeParts[i].split(".")) {
+                                        // TODO check file location
+                                        if (!part.matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                            throw new IllegalArgumentException("Invalid package name " + part);
+                                        }
+                                    }
+                                    pName = codeParts[i];
+                                    i++;
+                                }
+                                break;
+                            case "import":
+                                // TODO add import validation
+                                i++;
+                                boolean last = false;
+                                for (String part : codeParts[i].split(".")) {
+                                    if (!last && part.matches("\\*")) {
+                                        last = true;
+                                        continue;
+                                    }
+                                    assert (!last);
+                                    if (!part.matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                        throw new IllegalArgumentException("Invalid import name " + part);
+                                    }
+                                }
+                                file.getImports().add(new ImportComponent(codeParts[i], false, codeParts[i].endsWith(".*")));
+                                i++;
+                                break;
+                            case "class":
+                                ClassComponent clazz = new ClassComponent();
+                                boolean abs = false;
+                                boolean pub = false;
+                                if (i > 2) {
+                                    if (codeParts[i - 1] == "abstract") {
+                                        abs = true;
+                                        pub = codeParts[i - 2] == "public";
+                                    } else {
+                                        pub = codeParts[i - 1] == "public";
+                                    }
+                                } else if (i > 1) {
+                                    pub = codeParts[i - 1] == "public";
+                                    abs = codeParts[i - 1] == "abstract";
+                                }
+                                if (pub && file.getMainClass() != null) {
+                                    throw new IllegalArgumentException("There are two main classes in the file");
+                                }
+                                clazz.setAbs(abs);
+                                i++;
+                                if (!codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                    throw new IllegalArgumentException("Invlaid class name " + codeParts[i]);
+                                }
+                                clazz.setName(codeParts[i]);
+                                i++;
+                                if (codeParts[i].equals("extends")) {
+                                    i++;
+                                    String extension = "";
+                                    if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                        extension += codeParts[i];
+                                        i++;
+                                        //TODO syntax validation
+                                        if (codeParts[i] == "<") {
+                                            parents.push('<');
+                                            extension += codeParts[i];
+                                            i++;
+                                            while (!parents.isEmpty()) {
+                                                extension += codeParts[i];
+                                                if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                                    i++;
+                                                } else {
+                                                    throw new IllegalArgumentException("Malformed extension " + extension);
+                                                }
+                                                extension += codeParts[i];
+                                                while (codeParts[i] == ">") {
+                                                    if (parents.pop() == '<') {
+                                                        i++;
+                                                        extension += codeParts[i];
+                                                    }
+                                                }
+                                                switch (codeParts[i]) {
+                                                    case "<":
+                                                        parents.push('<');
+                                                        break;
+                                                    case ",":
+                                                        break;
+                                                    default:
+                                                        throw new IllegalArgumentException("Malformed extension " + extension);
+                                                }
+                                                i++;
+                                            }
+                                        }
+                                    } else {
+                                        throw new IllegalArgumentException("Malformed extension " + codeParts[i]);
+                                    }
+                                    clazz.setExtension(extension);
+                                }
+                                if (codeParts[i].equals("implements")) {
+                                    i++;
+                                    boolean going = true;
+                                    while (going) {
+                                        String implementation = "";
+                                        if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                            implementation += codeParts[i];
+                                            i++;
+                                            //TODO syntax validation
+                                            if (codeParts[i] == "<") {
+                                                parents.push('<');
+                                                implementation += codeParts[i];
+                                                i++;
+                                                while (!parents.isEmpty()) {
+                                                    implementation += codeParts[i];
+                                                    if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                                        i++;
+                                                    } else {
+                                                        throw new IllegalArgumentException("Malformed implementation " + implementation);
+                                                    }
+                                                    implementation += codeParts[i];
+                                                    while (codeParts[i] == ">") {
+                                                        if (parents.pop() == '<') {
+                                                            i++;
+                                                            implementation += codeParts[i];
+                                                        }
+                                                    }
+                                                    switch (codeParts[i]) {
+                                                        case "<":
+                                                            parents.push('<');
+                                                            break;
+                                                        case ",":
+                                                            break;
+                                                        default:
+                                                            throw new IllegalArgumentException("Malformed implementation " + implementation);
+                                                    }
+                                                    i++;
+                                                }
+                                            }
+                                        } else {
+                                            throw new IllegalArgumentException("Malformed implementation " + codeParts[i]);
+                                        }
+                                        clazz.getImplementations().add(implementation);
+                                        if (codeParts[i] == ",") {
+                                            i++;
+                                        } else {
+                                            going = false;
+                                        }
+                                    }
+                                }
+                                if (codeParts[i].equals("{")) {
+                                    StringBuilder tempContent = new StringBuilder();
+                                    int start = i + 1;
+                                    do {
+                                        switch (codeParts[i]) {
+                                            case "{":
+                                                parents.push('{');
+                                                break;
+                                            case "(":
+                                                parents.push('(');
+                                                break;
+                                            case "[":
+                                                parents.push('[');
+                                                break;
+                                            case "<":
+                                                parents.push('<');
+                                                break;
+                                            case ">":
+                                                // TODO bigger/smaller, currently unsupported
+                                                if(codeParts[i-1].equals("-")) {
+                                                    break;
+                                                }
+                                                if (parents.pop() != '<') {
+                                                    System.out.println(i + " " + codeParts[i]);
+                                                    throw new IllegalArgumentException("malformed class");
+                                                }
+                                                break;
+                                            case ")":
+                                                if (parents.pop() != '(')
+                                                    throw new IllegalArgumentException("malformed class");
+                                                break;
+                                            case "}":
+                                                if (parents.pop() != '{')
+                                                    throw new IllegalArgumentException("malformed class");
+                                                break;
+                                            case "]":
+                                                if (parents.pop() != '[')
+                                                    throw new IllegalArgumentException("malformed class");
+
+                                                break;
+                                        }
+                                        i++;
+                                    }
+                                    while (!parents.isEmpty());
+                                    while (start < i - 1) {
+                                        tempContent.append(codeParts[start++]);
+                                    }
+                                    clazz.setTempContent(tempContent.toString());
+                                } else {
+                                    throw new IllegalArgumentException("Malformed class");
+                                }
+                        }
+                    }
+                } catch (IndexOutOfBoundsException e) {
+                    throw new IllegalArgumentException("Malformed file exception");
+                }
                 src.getFiles().add(file);
+                src.setName(pName);
             }
 
             @Override
@@ -295,5 +352,29 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                 return content.toString();
             }
         };
+    }
+
+    private char lastChar(char[] text, int i) {
+        if (i == 0) {
+            return ' ';
+        } else {
+            return text[i - 1];
+        }
+    }
+
+    private class CodeComponent {
+        private int start;
+        private int length;
+        private Type type;
+
+        public CodeComponent(int start, int length, Type type) {
+            this.start = start;
+            this.length = length;
+            this.type = type;
+        }
+    }
+
+    protected enum Type {
+        COMMENT_LINE, COMMENT_CLOSED, STRING, CHAR, CODE
     }
 }

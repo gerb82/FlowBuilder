@@ -1,6 +1,7 @@
 package api.display;
 
 import javafx.beans.property.StringProperty;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.layout.BorderPane;
@@ -18,6 +19,7 @@ public class HUDPane<Content extends Region> extends BorderPane {
         super(center);
         backgroundProperty().bind(center.backgroundProperty());
         self = center;
+        self.setPadding(new Insets(10, 30, 30, 30));
         name = new Text();
         setTop(name);
         BorderPane.setAlignment(name, Pos.CENTER);

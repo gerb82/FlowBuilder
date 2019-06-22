@@ -34,12 +34,13 @@ public class FileComponent extends HUDPane<ScrollPane>{
         imports = new VBox();
         classes = new Pane();
         HUDPane<VBox> ports = new HUDPane<>(imports);
+        HUDPane<Pane> school = new HUDPane<>(classes);
         ports.setName("imports");
-        inside.getChildren().addAll(ports, classes);
-        classes.setLayoutY(300);
-        classes.setBackground(new Background(new BackgroundFill(Color.GREEN, null, null)));
+        school.setName("classes");
+        inside.getChildren().addAll(ports, school);
+        school.setLayoutY(300);
+        classes.setBackground(new Background(new BackgroundFill(Color.GRAY, null, null)));
         nameProperty().bind(name);
-        imports.setPadding(new Insets(10, 20, 10, 20));
         imports.setSpacing(10);
         imports.setBackground(new Background(new BackgroundFill(Color.RED, null, null)));
     }
