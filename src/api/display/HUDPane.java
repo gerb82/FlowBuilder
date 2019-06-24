@@ -66,7 +66,7 @@ public class HUDPane<Content extends Region> extends BorderPane {
                 current.set(name.getText());
                 event.consume();
             });
-            self.setOnContextMenuRequested(event -> {
+            setOnContextMenuRequested(event -> {
                 Dialog<Point2D> resize = new Dialog<>();
                 GridPane fields = new GridPane();
                 fields.setVgap(20);

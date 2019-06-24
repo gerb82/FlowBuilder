@@ -1,20 +1,22 @@
 package api.codeparts;
 
 import api.display.HUDPane;
+import api.display.WorkPane;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.ObservableList;
+import javafx.scene.Node;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 
 // Represents a function component
-public class FunctionComponent extends HUDPane<ScrollPane> implements Scannable{
+public class FunctionComponent extends HUDPane<WorkPane> implements Scannable{
 
-    private LinkedList<ContentComponent> content = new LinkedList<>();
+    private VBox content = new VBox();
     private ArrayList<VariableComponent> parameters = new ArrayList<>();
     private ArrayList<String> throwing = new ArrayList<>();
     private String[] tempContent;
@@ -22,10 +24,15 @@ public class FunctionComponent extends HUDPane<ScrollPane> implements Scannable{
     private SimpleStringProperty name = new SimpleStringProperty();
     private String returnType;
 
+    public ArrayList<String> getThrowing() {
+        return throwing;
+    }
     public FunctionComponent() {
-        super(new ScrollPane());
+        super(new WorkPane());
         nameProperty().bind(name);
         self.setBackground(new Background(new BackgroundFill(Color.PURPLE, null, null)));
+        content.setSpacing(5);
+        self.getChildren().add(content);
     }
 
     public String getReturnType() {
@@ -60,8 +67,8 @@ public class FunctionComponent extends HUDPane<ScrollPane> implements Scannable{
         this.tempContent = tempContent;
     }
 
-    public LinkedList<ContentComponent> getContent() {
-        return content;
+    public ObservableList<Node> getContent() {
+        return content.getChildren();
     }
 
     public ArrayList<VariableComponent> getParameters() {

@@ -38,7 +38,7 @@ public class FileComponent extends HUDPane<WorkPane>{
         self.getChildren().addAll(ports, school);
         school.setLayoutY(300);
         classes.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
-        classes.setPrefHeight(500);
+        classes.setPrefHeight(900);
         classes.setPrefWidth(500);
         nameProperty().bind(name);
         imports.setSpacing(10);

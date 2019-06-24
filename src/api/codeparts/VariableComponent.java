@@ -1,14 +1,18 @@
 package api.codeparts;
 
+import javafx.geometry.Insets;
+import javafx.scene.control.Label;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
 // Represents a variable component
-public class VariableComponent extends Rectangle implements ContentComponent {
+public class VariableComponent extends Label implements ContentComponent {
 
-    private String name;
-    private String type;
-    private String val;
+    private String name = null;
+    private String type = null;
+    private String val = null;
 
     public String getVal() {
         return val;
@@ -16,10 +20,17 @@ public class VariableComponent extends Rectangle implements ContentComponent {
 
     public void setVal(String val) {
         this.val = val;
+        updateView();
     }
 
-    public VariableComponent(){
+    public VariableComponent() {
+        super();
+        setBackground(new Background(new BackgroundFill(Color.MEDIUMPURPLE, null, null)));
+        setPadding(new Insets(5, 5, 5, 5));
+    }
 
+    private void updateView() {
+        setText(String.format("name: %s%ntype: %s%nvalue: %s", name, type, val));
     }
 
     public String getName() {
@@ -28,6 +39,7 @@ public class VariableComponent extends Rectangle implements ContentComponent {
 
     public void setName(String name) {
         this.name = name;
+        updateView();
     }
 
     public String getType() {
@@ -36,5 +48,6 @@ public class VariableComponent extends Rectangle implements ContentComponent {
 
     public void setType(String type) {
         this.type = type;
+        updateView();
     }
 }

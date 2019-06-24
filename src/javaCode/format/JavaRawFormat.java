@@ -16,8 +16,12 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
 
     public static PackageComponent src = new PackageComponent();
 
+    private ArrayList<String> stringList;
+    private ArrayList<String> characterList;
+
     public JavaRawFormat() {
         main = new AbstractCategoryDefinition<FileComponent>() {
+
             @Override
             public void setContent(String content) throws IllegalArgumentException {
 
@@ -27,8 +31,8 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                 LinkedList<CodeComponent> components = new LinkedList<>();
                 CodeComponent current = new CodeComponent(0, 0, CODE);
                 ArrayList<Scannable> toScan = new ArrayList<>();
-                ArrayList<String> stringList = new ArrayList<>();
-                ArrayList<String> characterList = new ArrayList<>();
+                stringList = new ArrayList<>();
+                characterList = new ArrayList<>();
 
                 for (int i = 0; i < text.length; i++) {
                     switch (current.type) {
@@ -151,7 +155,7 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
 
                 boolean pack = false;
                 try {
-                    for (int i = 0; i < codeParts.length;) {
+                    for (int i = 0; i < codeParts.length; ) {
                         switch (codeParts[i]) {
                             case "package":
                                 if (pack) {
@@ -257,7 +261,7 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
         if (scannable instanceof ClassComponent) {
             int privacy = 0;
             boolean stat = false;
-            for (int i = 0; i < text.length;) {
+            for (int i = 0; i < text.length; ) {
                 stat = false;
                 privacy = 0;
                 switch (text[i]) {
@@ -300,20 +304,37 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                 } else {
                                     throw new IllegalArgumentException("Invalid function signature for function: " + funk.getName());
                                 }
-                                if (text[i].equals(",")){
+                                if (text[i].equals(",")) {
                                     i++;
-                                } else if(!text[i].equals(")")){
+                                } else if (!text[i].equals(")")) {
                                     throw new IllegalArgumentException("Invalid function signature for function: " + funk.getName());
                                 }
                             }
                             i++;
                             int start = i + 1;
-                            if(text[i].equals("throws")){
-
+                            if (text[i].equals("throws")) {
+                                i++;
+                                while (text[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                                    StringBuilder first = new StringBuilder(text[i++]);
+                                    if (text[i].equals("<")) {
+                                        Pair<String, Integer> out = notBigger(text, i);
+                                        if (out.getValue() == 0) throw new IllegalArgumentException("Invalid <>");
+                                        first.append(out.getKey());
+                                    }
+                                    if (text[i].equals(",")) {
+                                        funk.getThrowing().add(first.toString());
+                                        i++;
+                                    } else if (text[i].equals("{")) {
+                                        funk.getThrowing().add(first.toString());
+                                    } else {
+                                        throw new IllegalArgumentException("Invalid throwable in function: " + funk.getName());
+                                    }
+                                }
                             }
                             i = parentValidator(text, i);
                             funk.setTempContent(Arrays.copyOfRange(text, start, i - 1));
                             (stat ? ((ClassComponent) scannable).getStaticFunctions() : ((ClassComponent) scannable).getFunctions()).add(funk);
+                            recursiveScanner(funk);
                         } else if (text[i].equals("=")) {
                             // variable
                             i++;
@@ -332,12 +353,68 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                     } else {
                         throw new IllegalArgumentException("Incorrect variable/function declaration");
                     }
+                } else if (text[i].equals("@Override")) {
+                    i++;
                 } else {
                     throw new IllegalArgumentException("Unexpected token");
                 }
             }
         } else {
-
+            for (int i = 0; i < text.length; ) {
+                int nextSemicolon = i;
+                boolean equals = false;
+                try {
+                    while (!text[nextSemicolon].equals(";")) {
+                        if (text[nextSemicolon].equals("=")) equals = true;
+                        nextSemicolon++;
+                    }
+                } catch (IndexOutOfBoundsException e) {
+                    throw new IllegalArgumentException("Missing ; at end of function");
+                }
+                if (equals) {
+                    Pair<VariableComponent, Integer> result = variableDecleration(text, i);
+                    i = result.getValue();
+                    if (result.getKey().getName() != null && result.getKey().getType() != null) {
+                        if (text[i].equals("=")) {
+                            StringBuilder builder = new StringBuilder(text[i++]);
+                            i = valueDefinition(text, i, builder);
+                            result.getKey().setVal(builder.toString());
+                            ((FunctionComponent) scannable).getContent().add(result.getKey());
+                            if (text[i++].equals(";")) continue;
+                            else {
+                                throw new IllegalArgumentException("Missing ;");
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Extra characters found in code line");
+                        }
+                    } else if (result.getKey().getName() != null) {
+                        if (text[i].equals("=")) {
+                            StringBuilder builder = new StringBuilder(text[i++]);
+                            i = valueDefinition(text, i, builder);
+                            result.getKey().setVal(builder.toString());
+                            ((FunctionComponent) scannable).getContent().add(result.getKey());
+                            if (text[i++].equals(";")) continue;
+                            else {
+                                throw new IllegalArgumentException("Missing ;");
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Extra characters found in code line");
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Invalid =");
+                    }
+                } else {
+                    StringBuilder builder = new StringBuilder();
+                    i = valueDefinition(text, i, builder);
+                    MethodComponent method = new MethodComponent();
+                    method.setMethod(builder.toString());
+                    ((FunctionComponent) scannable).getContent().add(method);
+                    if (text[i++].equals(";")) continue;
+                    else {
+                        throw new IllegalArgumentException("Missing ;");
+                    }
+                }
+            }
         }
         return scannable;
     }
@@ -383,8 +460,8 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                 }
                 i = filledArrayEnclosure(text, i, val);
                 if (text[i].equals("(")) {
-                    i = valueDefinition(text, i, val);
                     val.append(text[i++]);
+                    i = valueDefinition(text, i, val);
                     if (text[i].equals(")")) {
                         val.append(text[i++]);
                         return i;
@@ -395,8 +472,22 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
             } else {
                 throw new IllegalArgumentException("Illegal constructor name " + text[i]);
             }
+        } else if (text[i].matches("^\\d*(?:\\.\\d*)?$")) {
+            val.append(text[i++]);
+        } else if (text[i].matches("^true|false$")) {
+            val.append(text[i++]);
+        } else if (text[i].matches("^\"@\\d*\"$")) {
+            val.append(text[i].replaceAll("@\\d*", stringList.get(Integer.valueOf(text[i++].replaceAll("[\"@]", "")))));
+        } else if (text[i].matches("^'@\\d*'$")) {
+            val.append(text[i].replaceAll("@\\d*", characterList.get(Integer.valueOf(text[i++].replaceAll("['@]", "")))));
+        } else if (text[i].equals("(")) {
+            val.append(text[i++]);
+            i = valueDefinition(text, i, val);
+        } else if (text[i].equals(")")) {
+            val.append(text[i++]);
+            return i;
         } else {
-            while (text[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+            while (text[i].matches("^(?:[a-zA-Z_$][a-zA-Z0-9_$]*)(?:\\.(?:[a-zA-Z_$][a-zA-Z0-9_$]*))*$")) {
                 val.append(text[i++]);
                 i = filledArrayEnclosure(text, i, val);
                 if (text[i].equals("(")) {
