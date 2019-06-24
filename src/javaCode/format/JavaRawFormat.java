@@ -3,8 +3,13 @@ package javaCode.format;
 import api.codeparts.*;
 import api.format.AbstractCategoryDefinition;
 import api.format.AbstractFormatDefinition;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.util.Pair;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -14,19 +19,21 @@ import static javaCode.format.JavaRawFormat.Type.*;
 
 public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
 
-    public static PackageComponent src = new PackageComponent();
+    public static PackageComponent src = new PackageComponent(true);
 
     private ArrayList<String> stringList;
     private ArrayList<String> characterList;
+    private File origin;
 
-    public JavaRawFormat() {
+    public JavaRawFormat(File file) {
+        origin = file;
         main = new AbstractCategoryDefinition<FileComponent>() {
 
             @Override
             public void setContent(String content) throws IllegalArgumentException {
 
-                String pName = "src";
                 FileComponent file = new FileComponent();
+                file.setName(origin.getName().replaceAll("\\.\\S*", ""));
                 char[] text = content.toCharArray();
                 LinkedList<CodeComponent> components = new LinkedList<>();
                 CodeComponent current = new CodeComponent(0, 0, CODE);
@@ -155,7 +162,7 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
 
                 boolean pack = false;
                 try {
-                    for (int i = 0; i < codeParts.length; ) {
+                    for (int i = 0; i < codeParts.length; )
                         switch (codeParts[i]) {
                             case "package":
                                 if (pack) {
@@ -169,9 +176,11 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                             throw new IllegalArgumentException("Invalid package name " + part);
                                         }
                                     }
-                                    pName = codeParts[i];
-                                    i++;
-                                    i++;
+                                    String pName = codeParts[i++];
+                                    PackageComponent parent = JavaReader.explorer(origin.getParentFile());
+                                    parent.getFiles().add(file);
+                                    if (codeParts[i].equals(";")) i++;
+                                    else throw new IllegalArgumentException("Unexpected token");
                                 }
                                 break;
                             case "import":
@@ -188,9 +197,9 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                         throw new IllegalArgumentException("Invalid import name " + part);
                                     }
                                 }
-                                file.getImports().add(new ImportComponent(codeParts[i], false, codeParts[i].endsWith(".*")));
-                                i++;
-                                i++;
+                                file.getImports().add(new ImportComponent(codeParts[i], false, codeParts[i++].endsWith(".*")));
+                                if (codeParts[i].equals(";")) i++;
+                                else throw new IllegalArgumentException("Unexpected token");
                                 break;
                             case "class":
                                 ClassComponent clazz = new ClassComponent();
@@ -238,15 +247,12 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                             default:
                                 throw new IllegalArgumentException("Malformed file");
                         }
-                    }
                 } catch (IndexOutOfBoundsException e) {
                     throw new IllegalArgumentException("Malformed file exception");
                 }
                 for (Scannable scannable : toScan) {
                     recursiveScanner(scannable);
                 }
-                src.getFiles().add(file);
-                src.setName(pName);
             }
 
             @Override

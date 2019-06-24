@@ -1,9 +1,7 @@
 package api.format;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.regex.Matcher;
@@ -34,14 +32,25 @@ public abstract class Reader {
     // File reader, throws an IOException if the file could not be read
     public AbstractFormatDefinition readFile(File file) throws IOException {
         // File content
-        String fileText = new String(Files.readAllBytes(file.toPath()));
-        // The format that will be used to decipher the contents of the file
-        AbstractFormatDefinition format = formatSetup(file);
-        // If it's a raw file, just set the main content on the format
-        if (raw) format.setMainContent(fileText);
-        else {
-            // If not, then first read all of the side categories, and fill them in
-            for (int i = 0; i <= categories.size(); i++) {
+        if(file.isDirectory()){
+            addToRoot(file);
+            for(File inside : file.listFiles()){
+                try {
+                    readFile(inside);
+                } catch (IOException e){
+                    System.out.println("An unreadable file was found " + inside);
+                }
+            }
+        } else {
+            addToRoot(file.getParentFile());
+            String fileText = new String(Files.readAllBytes(file.toPath()));
+            // The format that will be used to decipher the contents of the file
+            AbstractFormatDefinition format = formatSetup(file);
+            // If it's a raw file, just set the main content on the format
+            if (raw) format.setMainContent(fileText);
+            else {
+                // If not, then first read all of the side categories, and fill them in
+                for (int i = 0; i <= categories.size(); i++) {
                 /* Regex explanation
                 (?s) - The . character will now reference ALL characters, even new-line characters
                 (?:categoryName+opener) - The matched pattern will start with categoryName+opener (for example: "test{"), but it will not be a part of
@@ -56,14 +65,14 @@ public abstract class Reader {
                 }
                 group 1: "hi there i'm doing all sorts of interesting stuff"
                  */
-                Matcher matcher = Pattern.compile("(?s)(?:" + categories.get(i) + opener + ")(.*?)" + "(?:" + closer + ")").matcher(fileText);
-                if (matcher.find()) {
-                    format.setCategory(i, matcher.group(1));
-                } else {
-                    throw new IOException("Couldn't find the " + categories.get(i) + " category in the file with the appropriate opener and closer");
+                    Matcher matcher = Pattern.compile("(?s)(?:" + categories.get(i) + opener + ")(.*?)" + "(?:" + closer + ")").matcher(fileText);
+                    if (matcher.find()) {
+                        format.setCategory(i, matcher.group(1));
+                    } else {
+                        throw new IOException("Couldn't find the " + categories.get(i) + " category in the file with the appropriate opener and closer");
+                    }
                 }
-            }
-            // And then read the rest of the file, that contains the main category, and add it into the format
+                // And then read the rest of the file, that contains the main category, and add it into the format
             /* Regex explanation
             The exact regex as the previous one, except this one will not take more characters as needed, but instead, give up on characters as needed
             for the pattern to match.
@@ -89,17 +98,22 @@ public abstract class Reader {
             That being said, this can only be done because it is the last category, as if it wasn't, it would have eaten up all of the other
             categories, closing itself on the last category's closer regardless of anything else.
              */
-            Matcher matcher = Pattern.compile("(?s)(?:" + "main" + opener + ")(.*)" + "(?:" + closer + ")").matcher(fileText);
-            if (matcher.find()) {
-                format.setMainContent(matcher.group(1));
-            } else {
-                throw new IOException("Couldn't find the main category in the file with the appropriate opener and closer");
+                Matcher matcher = Pattern.compile("(?s)(?:" + "main" + opener + ")(.*)" + "(?:" + closer + ")").matcher(fileText);
+                if (matcher.find()) {
+                    format.setMainContent(matcher.group(1));
+                } else {
+                    throw new IOException("Couldn't find the main category in the file with the appropriate opener and closer");
+                }
             }
+
+            // Return the finished format
+            return format;
         }
-        // Return the finished format
-        return format;
+        return null;
     }
 
     // Format setup that needs to be done in order to properly read the file
     protected abstract AbstractFormatDefinition formatSetup(File file) throws IOException;
+
+    protected abstract void addToRoot(File file);
 }

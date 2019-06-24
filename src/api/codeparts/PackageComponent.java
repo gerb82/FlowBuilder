@@ -17,10 +17,15 @@ public class PackageComponent extends HUDPane<SplitPane>{
     private WorkPane packages;
     private SimpleStringProperty name = new SimpleStringProperty();
 
-    public PackageComponent() {
-        super(new SplitPane(), false);
-        self.setPrefHeight(USE_COMPUTED_SIZE);
-        self.setPrefWidth(USE_COMPUTED_SIZE);
+    public PackageComponent(boolean source) {
+        super(new SplitPane(), !source);
+        if(source) {
+            self.setPrefHeight(USE_COMPUTED_SIZE);
+            self.setPrefWidth(USE_COMPUTED_SIZE);
+        } else {
+            self.setPrefHeight(500);
+            self.setPrefWidth(500);
+        }
         packages = new WorkPane();
         files = new WorkPane();
         self.getItems().addAll(packages, files);

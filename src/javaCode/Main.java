@@ -15,7 +15,7 @@ public class Main extends Application {
 
     public static void main(String[] args) throws IOException {
         Reader reader = new JavaReader();
-        reader.readFile(new File("C:\\Users\\User\\IdeaProjects\\FlowBuilder\\src\\test\\TestClass.java"));
+        reader.readFile(new File("C:\\Users\\User\\IdeaProjects\\FlowBuilder\\src\\test"));
         launch(args);
     }
 
