@@ -1,12 +1,12 @@
 package javaCode.format;
 
-import api.codeparts.ClassComponent;
-import api.codeparts.FileComponent;
-import api.codeparts.ImportComponent;
-import api.codeparts.PackageComponent;
+import api.codeparts.*;
 import api.format.AbstractCategoryDefinition;
 import api.format.AbstractFormatDefinition;
+import javafx.util.Pair;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Stack;
 
@@ -26,6 +26,9 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                 char[] text = content.toCharArray();
                 LinkedList<CodeComponent> components = new LinkedList<>();
                 CodeComponent current = new CodeComponent(0, 0, CODE);
+                ArrayList<Scannable> toScan = new ArrayList<>();
+                ArrayList<String> stringList = new ArrayList<>();
+                ArrayList<String> characterList = new ArrayList<>();
 
                 for (int i = 0; i < text.length; i++) {
                     switch (current.type) {
@@ -66,7 +69,7 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                 current.length++;
                             } else if (current.length == 2) {
                                 if (lastChar(text, i) == '\\') {
-                                    if ("tbnrf'\"\\".contains(new Character(text[i]).toString())) {
+                                    if ("tbnrf'\"\\".contains(Character.toString(text[i]))) {
                                         current.length++;
                                     } else {
                                         throw new IllegalArgumentException("Illegal char at: " + i);
@@ -122,20 +125,33 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                 components.add(current);
 
                 StringBuilder rawCode = new StringBuilder();
+                int strings = 0;
+                int chars = 0;
                 for (CodeComponent component : components) {
-                    if (component.type == CODE) {
-                        rawCode.append(String.copyValueOf(text, component.start, component.length));
-                    } else if (component.type == COMMENT_CLOSED || component.type == COMMENT_LINE) {
-                        rawCode.append(" ");
+                    switch (component.type) {
+                        case CODE:
+                            rawCode.append(String.copyValueOf(text, component.start, component.length));
+                            break;
+                        case COMMENT_CLOSED:
+                        case COMMENT_LINE:
+                            rawCode.append(" ");
+                            break;
+                        case STRING:
+                            rawCode.append("\"@" + strings++ + "\"");
+                            stringList.add(String.copyValueOf(text, component.start + 1, component.length - 1));
+                            break;
+                        case CHAR:
+                            rawCode.append("'@" + chars++ + "'");
+                            characterList.add(String.copyValueOf(text, component.start + 1, component.length - 1));
+                            break;
                     }
                 }
-                String finalCode = rawCode.toString().replaceAll(" ?\\. ?", ".").replaceAll("\\{", " { ").replaceAll("\\}", " } ").replaceAll("\\(", " ( ").replaceAll("\\)", " ) ").replaceAll("\\[", " [ ").replaceAll("\\]", " ] ").replaceAll("<", " < ").replaceAll(">", " > ").replaceAll(";", " ; ").replaceAll("[\\s\\n]+", " ");
+                String finalCode = rawCode.toString().replaceAll(" ?\\. ?", ".").replaceAll("=", " = ").replaceAll("=\\s*=", " == ").replaceAll(";", " ; ").replaceAll(",", " , ").replaceAll("\\{", " { ").replaceAll("\\}", " } ").replaceAll("\\(", " ( ").replaceAll("\\)", " ) ").replaceAll("\\[", " [ ").replaceAll("\\]", " ] ").replaceAll("<", " < ").replaceAll(">", " > ").replaceAll(";", " ; ").replaceAll("[\\s\\n]+", " ");
                 String[] codeParts = finalCode.split(" ");
 
-                Stack<Character> parents = new Stack<>();
                 boolean pack = false;
                 try {
-                    for (int i = 0; i < codeParts.length; i++) {
+                    for (int i = 0; i < codeParts.length;) {
                         switch (codeParts[i]) {
                             case "package":
                                 if (pack) {
@@ -150,6 +166,7 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                         }
                                     }
                                     pName = codeParts[i];
+                                    i++;
                                     i++;
                                 }
                                 break;
@@ -169,21 +186,22 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                 }
                                 file.getImports().add(new ImportComponent(codeParts[i], false, codeParts[i].endsWith(".*")));
                                 i++;
+                                i++;
                                 break;
                             case "class":
                                 ClassComponent clazz = new ClassComponent();
                                 boolean abs = false;
                                 boolean pub = false;
                                 if (i > 2) {
-                                    if (codeParts[i - 1] == "abstract") {
+                                    if (codeParts[i - 1].equals("abstract")) {
                                         abs = true;
-                                        pub = codeParts[i - 2] == "public";
+                                        pub = codeParts[i - 2].equals("public");
                                     } else {
-                                        pub = codeParts[i - 1] == "public";
+                                        pub = codeParts[i - 1].equals("public");
                                     }
                                 } else if (i > 1) {
-                                    pub = codeParts[i - 1] == "public";
-                                    abs = codeParts[i - 1] == "abstract";
+                                    pub = codeParts[i - 1].equals("public");
+                                    abs = codeParts[i - 1].equals("abstract");
                                 }
                                 if (pub && file.getMainClass() != null) {
                                     throw new IllegalArgumentException("There are two main classes in the file");
@@ -191,157 +209,37 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
                                 clazz.setAbs(abs);
                                 i++;
                                 if (!codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
-                                    throw new IllegalArgumentException("Invlaid class name " + codeParts[i]);
+                                    throw new IllegalArgumentException("Invalid class name " + codeParts[i]);
                                 }
                                 clazz.setName(codeParts[i]);
                                 i++;
-                                if (codeParts[i].equals("extends")) {
+                                i = classValidation(codeParts, i, clazz);
+                                file.getClasses().add(clazz);
+                                toScan.add(clazz);
+                                break;
+                            case "public":
+                                if (codeParts[i + 1].equals("class") || codeParts[i + 2].equals("class")) {
                                     i++;
-                                    String extension = "";
-                                    if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
-                                        extension += codeParts[i];
-                                        i++;
-                                        //TODO syntax validation
-                                        if (codeParts[i] == "<") {
-                                            parents.push('<');
-                                            extension += codeParts[i];
-                                            i++;
-                                            while (!parents.isEmpty()) {
-                                                extension += codeParts[i];
-                                                if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
-                                                    i++;
-                                                } else {
-                                                    throw new IllegalArgumentException("Malformed extension " + extension);
-                                                }
-                                                extension += codeParts[i];
-                                                while (codeParts[i] == ">") {
-                                                    if (parents.pop() == '<') {
-                                                        i++;
-                                                        extension += codeParts[i];
-                                                    }
-                                                }
-                                                switch (codeParts[i]) {
-                                                    case "<":
-                                                        parents.push('<');
-                                                        break;
-                                                    case ",":
-                                                        break;
-                                                    default:
-                                                        throw new IllegalArgumentException("Malformed extension " + extension);
-                                                }
-                                                i++;
-                                            }
-                                        }
-                                    } else {
-                                        throw new IllegalArgumentException("Malformed extension " + codeParts[i]);
-                                    }
-                                    clazz.setExtension(extension);
-                                }
-                                if (codeParts[i].equals("implements")) {
-                                    i++;
-                                    boolean going = true;
-                                    while (going) {
-                                        String implementation = "";
-                                        if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
-                                            implementation += codeParts[i];
-                                            i++;
-                                            //TODO syntax validation
-                                            if (codeParts[i] == "<") {
-                                                parents.push('<');
-                                                implementation += codeParts[i];
-                                                i++;
-                                                while (!parents.isEmpty()) {
-                                                    implementation += codeParts[i];
-                                                    if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
-                                                        i++;
-                                                    } else {
-                                                        throw new IllegalArgumentException("Malformed implementation " + implementation);
-                                                    }
-                                                    implementation += codeParts[i];
-                                                    while (codeParts[i] == ">") {
-                                                        if (parents.pop() == '<') {
-                                                            i++;
-                                                            implementation += codeParts[i];
-                                                        }
-                                                    }
-                                                    switch (codeParts[i]) {
-                                                        case "<":
-                                                            parents.push('<');
-                                                            break;
-                                                        case ",":
-                                                            break;
-                                                        default:
-                                                            throw new IllegalArgumentException("Malformed implementation " + implementation);
-                                                    }
-                                                    i++;
-                                                }
-                                            }
-                                        } else {
-                                            throw new IllegalArgumentException("Malformed implementation " + codeParts[i]);
-                                        }
-                                        clazz.getImplementations().add(implementation);
-                                        if (codeParts[i] == ",") {
-                                            i++;
-                                        } else {
-                                            going = false;
-                                        }
-                                    }
-                                }
-                                if (codeParts[i].equals("{")) {
-                                    StringBuilder tempContent = new StringBuilder();
-                                    int start = i + 1;
-                                    do {
-                                        switch (codeParts[i]) {
-                                            case "{":
-                                                parents.push('{');
-                                                break;
-                                            case "(":
-                                                parents.push('(');
-                                                break;
-                                            case "[":
-                                                parents.push('[');
-                                                break;
-                                            case "<":
-                                                parents.push('<');
-                                                break;
-                                            case ">":
-                                                // TODO bigger/smaller, currently unsupported
-                                                if(codeParts[i-1].equals("-")) {
-                                                    break;
-                                                }
-                                                if (parents.pop() != '<') {
-                                                    System.out.println(i + " " + codeParts[i]);
-                                                    throw new IllegalArgumentException("malformed class");
-                                                }
-                                                break;
-                                            case ")":
-                                                if (parents.pop() != '(')
-                                                    throw new IllegalArgumentException("malformed class");
-                                                break;
-                                            case "}":
-                                                if (parents.pop() != '{')
-                                                    throw new IllegalArgumentException("malformed class");
-                                                break;
-                                            case "]":
-                                                if (parents.pop() != '[')
-                                                    throw new IllegalArgumentException("malformed class");
-
-                                                break;
-                                        }
-                                        i++;
-                                    }
-                                    while (!parents.isEmpty());
-                                    while (start < i - 1) {
-                                        tempContent.append(codeParts[start++]);
-                                    }
-                                    clazz.setTempContent(tempContent.toString());
+                                    break;
                                 } else {
-                                    throw new IllegalArgumentException("Malformed class");
+                                    throw new IllegalArgumentException("Malformed file");
                                 }
+                            case "abstract":
+                                if (codeParts[i + 1].equals("class")) {
+                                    i++;
+                                    break;
+                                } else {
+                                    throw new IllegalArgumentException("Malformed file");
+                                }
+                            default:
+                                throw new IllegalArgumentException("Malformed file");
                         }
                     }
                 } catch (IndexOutOfBoundsException e) {
                     throw new IllegalArgumentException("Malformed file exception");
+                }
+                for (Scannable scannable : toScan) {
+                    recursiveScanner(scannable);
                 }
                 src.getFiles().add(file);
                 src.setName(pName);
@@ -354,12 +252,361 @@ public class JavaRawFormat extends AbstractFormatDefinition<FileComponent> {
         };
     }
 
+    private ContentComponent recursiveScanner(Scannable scannable) {
+        String[] text = scannable.getTempContent();
+        if (scannable instanceof ClassComponent) {
+            int privacy = 0;
+            boolean stat = false;
+            for (int i = 0; i < text.length;) {
+                stat = false;
+                privacy = 0;
+                switch (text[i]) {
+                    case "public":
+                        privacy = 1;
+                        break;
+                    case "protected":
+                        privacy = 2;
+                        break;
+                    case "private":
+                        privacy = 3;
+                        break;
+                }
+                if (privacy != 0) {
+                    i++;
+                }
+                if (text[i].equals("static")) {
+                    stat = true;
+                    i++;
+                }
+                if (text[i].equals("class")) {
+                    // class
+                    // TODO add inside class support
+                    throw new IllegalArgumentException("Inside classes are currently unsupported");
+                } else if (text[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                    Pair<VariableComponent, Integer> var = variableDecleration(text, i);
+                    if (var.getKey().getType() != null && var.getKey().getName() != null) {
+                        i = var.getValue();
+                        if (text[i].equals("(")) {
+                            // function
+                            i++;
+                            FunctionComponent funk = new FunctionComponent();
+                            funk.setReturnType(var.getKey().getType());
+                            funk.setName(var.getKey().getName());
+                            while (!text[i].equals(")")) {
+                                Pair<VariableComponent, Integer> param = variableDecleration(text, i);
+                                if (param.getKey().getType() != null && param.getKey().getName() != null) {
+                                    funk.getParameters().add(param.getKey());
+                                    i = param.getValue();
+                                } else {
+                                    throw new IllegalArgumentException("Invalid function signature for function: " + funk.getName());
+                                }
+                                if (text[i].equals(",")){
+                                    i++;
+                                } else if(!text[i].equals(")")){
+                                    throw new IllegalArgumentException("Invalid function signature for function: " + funk.getName());
+                                }
+                            }
+                            i++;
+                            int start = i + 1;
+                            if(text[i].equals("throws")){
+
+                            }
+                            i = parentValidator(text, i);
+                            funk.setTempContent(Arrays.copyOfRange(text, start, i - 1));
+                            (stat ? ((ClassComponent) scannable).getStaticFunctions() : ((ClassComponent) scannable).getFunctions()).add(funk);
+                        } else if (text[i].equals("=")) {
+                            // variable
+                            i++;
+                            StringBuilder value = new StringBuilder();
+                            i = valueDefinition(text, i, value);
+                            if (text[i].equals(";")) {
+                                var.getKey().setVal(value.toString());
+                                i++;
+                                (stat ? ((ClassComponent) scannable).getStaticVariables() : ((ClassComponent) scannable).getVariables()).add(var.getKey());
+                            } else {
+                                throw new IllegalArgumentException("No ; found on variable: " + var.getKey().getName());
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Unexpected token");
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Incorrect variable/function declaration");
+                    }
+                } else {
+                    throw new IllegalArgumentException("Unexpected token");
+                }
+            }
+        } else {
+
+        }
+        return scannable;
+    }
+
+    private Pair<VariableComponent, Integer> variableDecleration(String[] text, int i) {
+        if (text[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+            StringBuilder first = new StringBuilder(text[i++]);
+            String pure = first.toString();
+            if (text[i].equals("<")) {
+                Pair<String, Integer> out = notBigger(text, i);
+                if (out.getValue() == 0) throw new IllegalArgumentException("Invalid <>");
+                first.append(out.getKey());
+            }
+
+            i = arrayEnclosure(text, i, first);
+            String second = null;
+            if (text[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                second = text[i++];
+            }
+            VariableComponent var = new VariableComponent();
+            if (second == null && first.toString().equals(pure)) {
+                var.setName(pure);
+            } else if (second != null) {
+                var.setType(first.toString());
+                var.setName(second);
+            } else {
+                throw new IllegalArgumentException("Type declaration found but no variable was found with it");
+            }
+            return new Pair<>(var, i);
+        }
+        return new Pair<>(new VariableComponent(), i);
+    }
+
+    private int valueDefinition(String[] text, int i, StringBuilder val) {
+        if (text[i].equals("new")) {
+            val.append(text[i++]);
+            if (text[i].matches("^(?:[a-zA-Z_$][a-zA-Z0-9_$]*)(?:\\.(?:[a-zA-Z_$][a-zA-Z0-9_$]*))*$")) {
+                val.append(text[i++]);
+                if (text[i].equals("<")) {
+                    Pair<String, Integer> out = notBigger(text, i);
+                    if (out.getValue() == 0) throw new IllegalArgumentException("Invalid <> " + val);
+                    val.append(out.getKey());
+                }
+                i = filledArrayEnclosure(text, i, val);
+                if (text[i].equals("(")) {
+                    i = valueDefinition(text, i, val);
+                    val.append(text[i++]);
+                    if (text[i].equals(")")) {
+                        val.append(text[i++]);
+                        return i;
+                    }
+                } else {
+                    throw new IllegalArgumentException("Missing () " + val);
+                }
+            } else {
+                throw new IllegalArgumentException("Illegal constructor name " + text[i]);
+            }
+        } else {
+            while (text[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                val.append(text[i++]);
+                i = filledArrayEnclosure(text, i, val);
+                if (text[i].equals("(")) {
+                    i = valueDefinition(text, i, val);
+                }
+                if (text[i].equals(",")) val.append(text[i++]);
+                else if (text[i].equals(")")) {
+                    val.append(text[i++]);
+                    return i;
+                } else if (text[i].equals(".")) {
+                    val.append(text[i++]);
+                } else {
+                    throw new IllegalArgumentException("Unexpected token");
+                }
+            }
+        }
+        return i;
+    }
+
     private char lastChar(char[] text, int i) {
         if (i == 0) {
             return ' ';
         } else {
             return text[i - 1];
         }
+    }
+
+    private int arrayEnclosure(String[] text, int i, StringBuilder buf) {
+        int out = 0;
+        while (text[i].equals("[")) {
+            out++;
+            i++;
+            if (text[i].equals("]")) {
+                i++;
+            } else {
+                throw new IllegalArgumentException("Poorly formatted []");
+            }
+        }
+        buf.append(new String(new char[out]).replace("\0", "[]"));
+        return i;
+    }
+
+    private int filledArrayEnclosure(String[] text, int i, StringBuilder buf) {
+        Stack<Character> parents = new Stack<>();
+        if (text[i].equals("[")) {
+            do {
+                switch (text[i]) {
+                    case "(":
+                        parents.push('(');
+                        break;
+                    case "[":
+                        parents.push('[');
+                        break;
+                    case ")":
+                        if (parents.pop() != '(')
+                            throw new IllegalArgumentException("malformed class");
+                        break;
+                    case "]":
+                        if (parents.pop() != '[')
+                            throw new IllegalArgumentException("malformed class");
+                        break;
+                }
+                buf.append(text[i++]);
+            }
+            while (!parents.isEmpty() && !text[i].equals("["));
+        }
+        return i;
+    }
+
+    private Pair<String, Integer> notBigger(String[] codeParts, int i) {
+        StringBuilder out = new StringBuilder();
+        Stack<Character> parents = new Stack<>();
+        boolean going = true;
+        parents.push('<');
+        out.append(codeParts[i]);
+        i++;
+        if (codeParts[i].equals(">")) {
+            i++;
+            return new Pair<>("<>", i);
+        }
+        while (!parents.isEmpty() && going) {
+            out.append(codeParts[i]);
+            if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                i++;
+            } else {
+                return new Pair<>("", 0);
+            }
+            i = arrayEnclosure(codeParts, i, out);
+            out.append(codeParts[i]);
+            while (codeParts[i].equals(">")) {
+                if (parents.pop() == '<') {
+                    i++;
+                    i = arrayEnclosure(codeParts, i, out);
+                    out.append(codeParts[i]);
+                } else {
+                    return new Pair<>("", 0);
+                }
+            }
+            i = arrayEnclosure(codeParts, i, out);
+            switch (codeParts[i]) {
+                case "<":
+                    parents.push('<');
+                    break;
+                case ",":
+                    break;
+                default:
+                    going = false;
+            }
+            i++;
+        }
+        if (going) {
+            return new Pair<>(out.toString(), i);
+        } else {
+            return new Pair<>(out.toString(), 0);
+        }
+    }
+
+    private int classValidation(String[] codeParts, int i, ClassComponent clazz) {
+        if (codeParts[i].equals("extends")) {
+            i++;
+            StringBuilder extension = new StringBuilder();
+            if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                extension.append(codeParts[i]);
+                i++;
+                //TODO syntax validation
+                if (codeParts[i].equals("<")) {
+                    Pair<String, Integer> bigger = notBigger(codeParts, i);
+                    extension.append(bigger.getKey());
+                    if (bigger.getValue() == 0) {
+                        throw new IllegalArgumentException("Malformed extension " + extension);
+                    }
+                    i = bigger.getValue();
+                }
+            } else {
+                throw new IllegalArgumentException("Malformed extension " + codeParts[i]);
+            }
+            clazz.setExtension(extension.toString());
+        }
+        if (codeParts[i].equals("implements")) {
+            i++;
+            boolean going = true;
+            while (going) {
+                StringBuilder implementation = new StringBuilder();
+                if (codeParts[i].matches("^[a-zA-Z_$][a-zA-Z0-9_$]*$")) {
+                    implementation.append(codeParts[i]);
+                    i++;
+                    //TODO syntax validation
+                    if (codeParts[i].equals("<")) {
+                        Pair<String, Integer> bigger = notBigger(codeParts, i);
+                        implementation.append(bigger.getKey());
+                        if (bigger.getValue() == 0) {
+                            throw new IllegalArgumentException("Malformed implementation " + implementation);
+                        }
+                        i = bigger.getValue();
+                    }
+                } else {
+                    throw new IllegalArgumentException("Malformed implementation " + codeParts[i]);
+                }
+                clazz.getImplementations().add(String.valueOf(implementation));
+                if (codeParts[i].equals(",")) {
+                    i++;
+                } else {
+                    going = false;
+                }
+            }
+        }
+        int start = i + 1;
+        i = parentValidator(codeParts, i);
+        clazz.setTempContent(Arrays.copyOfRange(codeParts, start, i - 1));
+        return i;
+    }
+
+    private int parentValidator(String[] codeParts, int i) {
+        Stack<Character> parents = new Stack<>();
+        if (codeParts[i].equals("{")) {
+            do {
+                switch (codeParts[i]) {
+                    case "{":
+                        parents.push('{');
+                        break;
+                    case "(":
+                        parents.push('(');
+                        break;
+                    case "[":
+                        parents.push('[');
+                        break;
+                    case "<":
+                        int bigger = notBigger(codeParts, i).getValue();
+                        i = bigger > i ? bigger : i + 1;
+                        break;
+                    case ")":
+                        if (parents.pop() != '(')
+                            throw new IllegalArgumentException("malformed class");
+                        break;
+                    case "}":
+                        if (parents.pop() != '{')
+                            throw new IllegalArgumentException("malformed class");
+                        break;
+                    case "]":
+                        if (parents.pop() != '[')
+                            throw new IllegalArgumentException("malformed class");
+                        break;
+                }
+                i++;
+            }
+            while (!parents.isEmpty());
+        } else {
+            throw new IllegalArgumentException("Missing {}");
+        }
+        return i;
     }
 
     private class CodeComponent {

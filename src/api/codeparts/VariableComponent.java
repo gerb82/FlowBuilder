@@ -8,11 +8,18 @@ public class VariableComponent extends Rectangle implements ContentComponent {
 
     private String name;
     private String type;
+    private String val;
+
+    public String getVal() {
+        return val;
+    }
+
+    public void setVal(String val) {
+        this.val = val;
+    }
 
     public VariableComponent(){
-        setWidth(100);
-        setHeight(100);
-        setFill(Color.AQUAMARINE);
+
     }
 
     public String getName() {

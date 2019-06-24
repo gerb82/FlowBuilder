@@ -3,8 +3,9 @@ package api.codeparts;
 import java.util.ArrayList;
 
 // Represents a loop component
-public class LoopComponent implements ContentComponent {
+public class LoopComponent implements Scannable{
 
+    private String[] tempContent;
     private ArrayList<ArrayList<ContentComponent>> content = new ArrayList<>();
     private VariableComponent paramter;
 
@@ -18,5 +19,15 @@ public class LoopComponent implements ContentComponent {
 
     public void setParamter(VariableComponent paramter) {
         this.paramter = paramter;
+    }
+
+    @Override
+    public void setTempContent(String[] tempContent) {
+        this.tempContent = tempContent;
+    }
+
+    @Override
+    public String[] getTempContent() {
+        return tempContent;
     }
 }

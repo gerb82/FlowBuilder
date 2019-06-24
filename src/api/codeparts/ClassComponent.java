@@ -1,30 +1,34 @@
 package api.codeparts;
 
 import api.display.HUDPane;
+import api.display.WorkPane;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 
 import java.util.ArrayList;
 
-public class ClassComponent extends HUDPane<ScrollPane> implements ContentComponent{
+public class ClassComponent extends HUDPane<WorkPane> implements Scannable{
 
-    private Pane functions;
-    private Pane staticFunk;
-    private Pane variables;
+    private VBox functions;
+    private VBox staticFunk;
+    private VBox variables;
+    private VBox staticVariables;
     private String extension;
-    private String tempContent;
+    private String[] tempContent;
 
-    public String getTempContent() {
+    public String[] getTempContent() {
         return tempContent;
     }
 
-    public void setTempContent(String tempContent) {
+    public void setTempContent(String[] tempContent) {
         this.tempContent = tempContent;
     }
 
@@ -42,22 +46,27 @@ public class ClassComponent extends HUDPane<ScrollPane> implements ContentCompon
     private SimpleStringProperty name = new SimpleStringProperty();
 
     public ClassComponent() {
-        super(new ScrollPane());
-        functions = new Pane();
-        staticFunk = new Pane();
-        variables = new Pane();
-        Pane inside = new Pane();
-        HUDPane<ScrollPane> funkHUD = new HUDPane<>(new ScrollPane(functions){{setBackground(new Background(new BackgroundFill(Color.YELLOWGREEN, null, null)));}});
+        super(new WorkPane());
+        functions = new VBox();
+        staticFunk = new VBox();
+        variables = new VBox();
+        staticVariables = new VBox();
+        self.setPrefHeight(100);
+        self.setPrefWidth(100);
+        HUDPane<VBox> funkHUD = new HUDPane<>(functions);
+        functions.setBackground(new Background(new BackgroundFill(Color.YELLOWGREEN, null, null)));
         funkHUD.setName("functions");
-        HUDPane<ScrollPane> staticFunkHUD = new HUDPane<>(new ScrollPane(staticFunk){{setBackground(new Background(new BackgroundFill(Color.GREENYELLOW, null, null)));}});
+        HUDPane<VBox> staticFunkHUD = new HUDPane<>(staticFunk);
+        staticFunk.setBackground(new Background(new BackgroundFill(Color.GREENYELLOW, null, null)));
         staticFunkHUD.setName("static functions");
-        HUDPane<ScrollPane> variablesHUD = new HUDPane<>(new ScrollPane(variables){{setBackground(new Background(new BackgroundFill(Color.ORANGE, null, null)));}});
+        HUDPane<VBox> variablesHUD = new HUDPane<>(variables);
+        variables.setBackground(new Background(new BackgroundFill(Color.ORANGE, null, null)));
         variablesHUD.setName("variables");
-        inside.getChildren().addAll(funkHUD, staticFunkHUD, variablesHUD);
-        staticFunkHUD.setLayoutX(100);
-        variablesHUD.setLayoutY(100);
+        HUDPane<VBox> staticVariablesHUD = new HUDPane<>(staticVariables);
+        staticVariables.setBackground(new Background(new BackgroundFill(Color.DARKORANGE, null, null)));
+        staticVariablesHUD.setName("static variables");
+        self.getChildren().addAll(funkHUD, staticFunkHUD, variablesHUD);
         self.setBackground(new Background(new BackgroundFill(Color.OLIVE, null, null)));
-        self.setContent(inside);
         nameProperty().bind(name);
     }
 
@@ -92,5 +101,9 @@ public class ClassComponent extends HUDPane<ScrollPane> implements ContentCompon
 
     public ObservableList<Node> getVariables() {
         return variables.getChildren();
+    }
+
+    public ObservableList<Node> getStaticVariables() {
+        return staticVariables.getChildren();
     }
 }

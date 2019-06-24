@@ -12,16 +12,12 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 
 // Represents a function component
-public class FunctionComponent extends HUDPane<ScrollPane>{
-
-    public enum Protection{
-        PUBLIC, PROTECTED, PACKAGE_PROTECTED, PRIVATE
-    }
+public class FunctionComponent extends HUDPane<ScrollPane> implements Scannable{
 
     private LinkedList<ContentComponent> content = new LinkedList<>();
     private ArrayList<VariableComponent> parameters = new ArrayList<>();
-    private String tempContent;
-    private Protection accessLevel;
+    private ArrayList<String> throwing = new ArrayList<>();
+    private String[] tempContent;
     private boolean electrical;
     private SimpleStringProperty name = new SimpleStringProperty();
     private String returnType;
@@ -56,19 +52,11 @@ public class FunctionComponent extends HUDPane<ScrollPane>{
         this.electrical = electrical;
     }
 
-    public Protection getAccessLevel() {
-        return accessLevel;
-    }
-
-    public void setAccessLevel(Protection accessLevel) {
-        this.accessLevel = accessLevel;
-    }
-
-    public String getTempContent() {
+    public String[] getTempContent() {
         return tempContent;
     }
 
-    public void setTempContent(String tempContent) {
+    public void setTempContent(String[] tempContent) {
         this.tempContent = tempContent;
     }
 

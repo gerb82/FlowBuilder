@@ -1,10 +1,10 @@
 package api.codeparts;
 
 import api.display.HUDPane;
+import api.display.WorkPane;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ObservableList;
 import javafx.scene.Node;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
@@ -13,19 +13,20 @@ import javafx.scene.paint.Color;
 
 public class PackageComponent extends HUDPane<SplitPane>{
 
-    private Pane files;
-    private Pane packages;
+    private WorkPane files;
+    private WorkPane packages;
     private SimpleStringProperty name = new SimpleStringProperty();
 
     public PackageComponent() {
-        super(new SplitPane());
-        self.setPrefHeight(1000);
-        self.setPrefWidth(1000);
-        packages = new Pane();
-        files = new Pane();
-        self.setBackground(new Background(new BackgroundFill(Color.AQUAMARINE, null, null)));
+        super(new SplitPane(), false);
+        self.setPrefHeight(USE_COMPUTED_SIZE);
+        self.setPrefWidth(USE_COMPUTED_SIZE);
+        packages = new WorkPane();
+        files = new WorkPane();
         self.getItems().addAll(packages, files);
         nameProperty().bind(name);
+        files.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
+        packages.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
     }
 
     public String getName() {
